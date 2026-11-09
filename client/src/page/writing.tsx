@@ -9,8 +9,8 @@ import {Checkbox, Input} from "../components/input";
 import { DateTimeInput, FlatMetaRow, FlatPanel } from "@rin/ui";
 import { client } from "../app/runtime";
 import {Cache} from '../utils/cache';
+import {useCanonicalUrl} from "../hooks/useCanonicalUrl";
 import {useSiteConfig} from "../hooks/useSiteConfig";
-import {siteName} from "../utils/constants";
 import mermaid from 'mermaid';
 import { MarkdownEditor } from '../components/markdown_editor';
 
@@ -120,6 +120,7 @@ async function update({
 export function WritingPage({ id }: { id?: number }) {
   const { t } = useTranslation();
   const siteConfig = useSiteConfig();
+  const canonicalUrl = useCanonicalUrl();
   const cache = Cache.with(id);
   const [title, setTitle] = cache.useCache("title", "");
   const [summary, setSummary] = cache.useCache("summary", "");
@@ -327,11 +328,12 @@ export function WritingPage({ id }: { id?: number }) {
     <>
       <Helmet>
         <title>{`${t('writing')} - ${siteConfig.name}`}</title>
-        <meta property="og:site_name" content={siteName} />
+        <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:site_name" content={siteConfig.name} />
         <meta property="og:title" content={t('writing')} />
         <meta property="og:image" content={siteConfig.avatar} />
         <meta property="og:type" content="article" />
-        <meta property="og:url" content={document.URL} />
+        <meta property="og:url" content={canonicalUrl} />
       </Helmet>
       <div className="mt-2 flex flex-col gap-4 t-primary sm:gap-6">
         {MetaInput({ className: "p-4 sm:p-5 md:p-6" })}

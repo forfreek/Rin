@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AppContext } from "../core/hono-types";
 import { profileAsync } from "../core/server-timing";
 import { feeds, users } from "../db/schema";
+import { feedCacheMatchesOrigin } from "../utils/canonical-cache";
 import { extractImage } from "../utils/image";
 import { path_join } from "../utils/path";
 import { getStorageObject, getStoragePublicUrl, headStorageObject, putStorageObjectAtKey } from "../utils/storage";
@@ -94,17 +95,22 @@ async function handleFeed(c: AppContext, fileName: string) {
     // generate from the current request origin instead of serving another host's feed.
     const key = path_join(folder, fileName);
 
-    if (canUsePersistentCache) {
+    let replaceStaleCache = false;
+    if (canUsePersistentCache && configuredFrontendUrl) {
         try {
             const response = await profileAsync(c, 'rss_s3_fetch', () => getStorageObject(env, key));
 
             if (response) {
-                console.log(`[RSS] Storage hit for ${key}`);
                 const text = await profileAsync(c, 'rss_s3_body', () => response.text());
-                return c.text(text, 200, {
-                    'Content-Type': contentType,
-                    'Cache-Control': 'public, max-age=3600',
-                });
+                if (feedCacheMatchesOrigin(text, configuredFrontendUrl)) {
+                    console.log(`[RSS] Storage hit for ${key}`);
+                    return c.text(text, 200, {
+                        'Content-Type': contentType,
+                        'Cache-Control': 'public, max-age=3600',
+                    });
+                }
+                console.log(`[RSS] Ignoring cached ${fileName} because its origin does not match FRONTEND_URL`);
+                replaceStaleCache = true;
             }
         } catch (e: any) {
             console.log(`[RSS] Storage fetch failed: ${e.message}, falling back to generation`);
@@ -133,6 +139,19 @@ async function handleFeed(c: AppContext, fileName: string) {
                 content = await profileAsync(c, 'rss_render_default', () => Promise.resolve(feed.rss2()));
         }
         
+        if (replaceStaleCache) {
+            try {
+                await putStorageObjectAtKey(
+                    env,
+                    key,
+                    content,
+                    fileName.endsWith('.json') ? 'application/json' : 'application/xml',
+                );
+            } catch (e: any) {
+                console.log(`[RSS] Failed to replace stale ${fileName}: ${e.message}`);
+            }
+        }
+
         return c.text(content, 200, {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=300', // Shorter cache for real-time

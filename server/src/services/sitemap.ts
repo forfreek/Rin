@@ -2,6 +2,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { Hono } from "hono";
 import type { AppContext, DB } from "../core/hono-types";
 import { feedHashtags, feeds, friends, hashtags, moments } from "../db/schema";
+import { robotsCacheMatchesOrigin, sitemapCacheMatchesOrigin } from "../utils/canonical-cache";
 import { path_join } from "../utils/path";
 import { getStorageObject, putStorageObjectAtKey } from "../utils/storage";
 
@@ -69,8 +70,8 @@ async function generateSitemapXml(env: Env, db: DB, requestUrl?: string): Promis
 
   const addUrl = (loc: string, lastmod?: Date | null) => {
     const lastmodStr = formatLastMod(lastmod);
-    // 首页只输出站点根地址，不带末尾斜杠
-    const fullUrl = loc === "/" ? baseUrl : baseUrl + loc;
+    // 首页使用带末尾斜杠的根地址，与页面 canonical 保持一致
+    const fullUrl = loc === "/" ? `${baseUrl}/` : baseUrl + loc;
     urls.push(
       `    <url>\n      <loc>${escapeXml(fullUrl)}</loc>${
         lastmodStr ? `\n      <lastmod>${lastmodStr}</lastmod>` : ""
@@ -149,10 +150,13 @@ export function SitemapService(): Hono {
         const cached = await getStorageObject(env, key);
         if (cached) {
           const text = await cached.text();
-          return c.body(text, 200, {
-            "Content-Type": SITEMAP_CONTENT_TYPE,
-            "Cache-Control": "public, max-age=3600",
-          });
+          if (sitemapCacheMatchesOrigin(text, getBaseUrl(env))) {
+            return c.body(text, 200, {
+              "Content-Type": SITEMAP_CONTENT_TYPE,
+              "Cache-Control": "public, max-age=3600",
+            });
+          }
+          console.log("[Sitemap] Ignoring cached sitemap because its origin does not match FRONTEND_URL");
         }
       } catch (e: any) {
         console.log(`[Sitemap] cache read failed: ${e?.message}, falling back to generation`);
@@ -184,10 +188,13 @@ export function SitemapService(): Hono {
         const cached = await getStorageObject(env, key);
         if (cached) {
           const text = await cached.text();
-          return c.body(text, 200, {
-            "Content-Type": ROBOTS_CONTENT_TYPE,
-            "Cache-Control": "public, max-age=3600",
-          });
+          if (robotsCacheMatchesOrigin(text, getBaseUrl(env))) {
+            return c.body(text, 200, {
+              "Content-Type": ROBOTS_CONTENT_TYPE,
+              "Cache-Control": "public, max-age=3600",
+            });
+          }
+          console.log("[Sitemap] Ignoring cached robots.txt because its origin does not match FRONTEND_URL");
         }
       } catch (e: any) {
         console.log(`[Sitemap] robots cache read failed: ${e?.message}, falling back to generation`);

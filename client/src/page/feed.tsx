@@ -13,14 +13,32 @@ import { Markdown } from "../components/markdown";
 import { client } from "../app/runtime";
 import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl";
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants";
 import { timeago } from "../utils/timeago";
 import { Button } from "../components/button";
 import { Tips } from "../components/tips";
 import mermaid from "mermaid";
 import { AdjacentSection } from "../components/adjacent_feed.tsx";
 import { stripImageUrlMetadata } from "../utils/image-upload";
+
+function articleDescription(feed: { summary?: string | null; content?: string | null }) {
+  const summary = feed.summary?.trim();
+  if (summary) {
+    return summary;
+  }
+
+  const plain = (feed.content ?? "")
+    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)]\([^)]*\)/g, "$1")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[*_~>#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > 200 ? plain.slice(0, 200) : plain;
+}
 
 function extractFirstMarkdownImageUrl(content: string) {
   const match = /!\[.*?\]\((\S+?)(?:\s+"[^"]*")?\)/.exec(content);
@@ -34,6 +52,7 @@ function extractFirstMarkdownImageUrl(content: string) {
 export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Element, clean: (id: string) => void }) {
   const { t } = useTranslation();
   const siteConfig = useSiteConfig();
+  const canonicalUrl = useCanonicalUrl();
   const profile = useContext(ProfileContext);
   const [feed, setFeed] = useState<Feed>();
   const [error, setError] = useState<string>();
@@ -132,37 +151,26 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
     })
   }, [feed]);
 
+  const description = feed ? articleDescription(feed) : "";
+
   return (
     <Waiting for={feed || error}>
       {feed && (
         <Helmet>
           <title>{`${feed.title ?? "Unnamed"} - ${siteConfig.name}`}</title>
-          <meta property="og:site_name" content={siteName} />
+          <link rel="canonical" href={canonicalUrl} />
+          <meta property="og:site_name" content={siteConfig.name} />
           <meta property="og:title" content={feed.title ?? ""} />
           <meta property="og:image" content={headImage ?? siteConfig.avatar} />
           <meta property="og:type" content="article" />
-          <meta property="og:url" content={document.URL} />
-          <meta
-            name="og:description"
-            content={
-              feed.content.length > 200
-                ? feed.content.substring(0, 200)
-                : feed.content
-            }
-          />
+          <meta property="og:url" content={canonicalUrl} />
+          <meta property="og:description" content={description} />
           <meta name="author" content={feed.user.username} />
           <meta
             name="keywords"
             content={hashtags.map(({ name }) => name).join(", ")}
           />
-          <meta
-            name="description"
-            content={
-              feed.content.length > 200
-                ? feed.content.substring(0, 200)
-                : feed.content
-            }
-          />
+          <meta name="description" content={description} />
         </Helmet>
       )}
       <div className="w-full flex flex-row justify-center ani-show">

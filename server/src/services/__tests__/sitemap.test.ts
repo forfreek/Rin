@@ -80,10 +80,69 @@ describe("SitemapService", () => {
     ctx.sqlite.exec(`INSERT INTO feeds (id, title, content, uid, draft, listed) VALUES (1, 'Published', 'Content', 1, 0, 1)`);
 
     const sitemap = await ctx.app.request("https://other.example/sitemap.xml", { method: "GET" }, env);
-    expect(await sitemap.text()).toContain("https://canonical.example/feed/1");
+    const sitemapText = await sitemap.text();
+    expect(sitemapText).toContain("<loc>https://canonical.example/</loc>");
+    expect(sitemapText).not.toContain("<loc>https://canonical.example</loc>");
+    expect(sitemapText).toContain("https://canonical.example/feed/1");
     const robots = await ctx.app.request("https://other.example/robots.txt", { method: "GET" }, env);
     expect(await robots.text()).toContain("Sitemap: https://canonical.example/sitemap.xml");
     expect(keys).toEqual(["cache/sitemap.xml", "cache/robots.txt"]);
+
+    cleanupTestDB(ctx.sqlite);
+  });
+
+  it("regenerates a cached sitemap or robots file from another origin", async () => {
+    const stored = new Map<string, string>([
+      ["cache/sitemap.xml", "<urlset><url><loc>https://old.example/</loc></url><url><loc>https://old.example/feed/1</loc></url></urlset>"],
+      ["cache/robots.txt", "Sitemap: https://old.example/sitemap.xml\n"],
+    ]);
+    const env = createMockEnv({
+      FRONTEND_URL: "https://canonical.example",
+      R2_BUCKET: {
+        get: async (key: string) => {
+          const text = stored.get(key);
+          if (!text) return null;
+          const bytes = new TextEncoder().encode(text);
+          return {
+            key,
+            size: bytes.byteLength,
+            etag: "etag",
+            httpEtag: "etag",
+            uploaded: new Date("2025-01-01T00:00:00Z"),
+            storageClass: "Standard",
+            checksums: {} as R2Checksums,
+            httpMetadata: { contentType: "application/xml" },
+            writeHttpMetadata(headers: Headers) {
+              headers.set("Content-Type", "application/xml");
+            },
+            body: new Blob([bytes]).stream(),
+            bodyUsed: false,
+            arrayBuffer: async () => bytes.buffer,
+            text: async () => text,
+            json: async () => ({}),
+            blob: async () => new Blob([bytes]),
+            bytes: async () => bytes,
+          } as unknown as R2ObjectBody;
+        },
+        put: async (key: string, value: string) => {
+          stored.set(key, value);
+        },
+      } as unknown as R2Bucket,
+    });
+    const ctx = await setupTestApp(SitemapService, env);
+    ctx.sqlite.exec(`INSERT INTO users (id, username, openid) VALUES (1, 'testuser', 'gh_test')`);
+    ctx.sqlite.exec(`INSERT INTO feeds (id, title, content, uid, draft, listed) VALUES (1, 'Published', 'Content', 1, 0, 1)`);
+
+    const sitemap = await ctx.app.request("https://other.example/sitemap.xml", { method: "GET" }, env);
+    const sitemapText = await sitemap.text();
+    expect(sitemapText).toContain("https://canonical.example/");
+    expect(sitemapText).not.toContain("https://old.example");
+    expect(stored.get("cache/sitemap.xml")).toContain("https://canonical.example/feed/1");
+
+    const robots = await ctx.app.request("https://other.example/robots.txt", { method: "GET" }, env);
+    const robotsText = await robots.text();
+    expect(robotsText).toContain("Sitemap: https://canonical.example/sitemap.xml");
+    expect(robotsText).not.toContain("https://old.example");
 
     cleanupTestDB(ctx.sqlite);
   });

@@ -6,8 +6,8 @@ import { Waiting } from "../components/loading"
 import { client } from "../app/runtime"
 import { ProfileContext } from "../state/profile"
 
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl"
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants"
 import { tryInt } from "../utils/int"
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +26,7 @@ type FeedsMap = {
 export function FeedsPage() {
     const { t } = useTranslation()
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     const query = new URLSearchParams(useSearch());
     const profile = useContext(ProfileContext);
     const [listState, _setListState] = useState<FeedType>(query.get("type") as FeedType || 'normal')
@@ -70,12 +71,15 @@ export function FeedsPage() {
     return (
         <>
             <Helmet>
-                <title>{`${t('article.title')} - ${siteConfig.name}`}</title>
-                <meta property="og:site_name" content={siteName} />
-                <meta property="og:title" content={t('article.title')} />
+                <title>{siteConfig.name}</title>
+                <meta name="description" content={siteConfig.description} />
+                <link rel="canonical" href={canonicalUrl} />
+                <meta property="og:site_name" content={siteConfig.name} />
+                <meta property="og:title" content={siteConfig.name} />
+                <meta property="og:description" content={siteConfig.description} />
                 <meta property="og:image" content={siteConfig.avatar} />
                 <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
+                <meta property="og:url" content={canonicalUrl} />
             </Helmet>
             <Waiting for={feeds.draft.size + feeds.normal.size + feeds.unlisted.size > 0 || status === 'idle'}>
                 <main className="w-full flex flex-col justify-center items-center mb-8">

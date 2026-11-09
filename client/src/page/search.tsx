@@ -6,8 +6,8 @@ import { FeedCard } from "../components/feed_card"
 import { Waiting } from "../components/loading"
 import { client } from "../app/runtime"
 
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl"
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants"
 import { tryInt } from "../utils/int"
 
 type FeedsData = {
@@ -19,6 +19,7 @@ type FeedsData = {
 export function SearchPage({ keyword }: { keyword: string }) {
     const { t } = useTranslation()
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     const query = new URLSearchParams(useSearch());
     const [status, setStatus] = useState<'loading' | 'idle'>('idle')
     const [feeds, setFeeds] = useState<FeedsData>()
@@ -51,11 +52,12 @@ export function SearchPage({ keyword }: { keyword: string }) {
         <>
             <Helmet>
                 <title>{`${title} - ${siteConfig.name}`}</title>
-                <meta property="og:site_name" content={siteName} />
+                <link rel="canonical" href={canonicalUrl} />
+                <meta property="og:site_name" content={siteConfig.name} />
                 <meta property="og:title" content={title} />
                 <meta property="og:image" content={siteConfig.avatar} />
                 <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
+                <meta property="og:url" content={canonicalUrl} />
             </Helmet>
             <Waiting for={status === 'idle'}>
                 <main className="w-full flex flex-col justify-center items-center mb-8">
