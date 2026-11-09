@@ -1,3 +1,4 @@
+import { buildCanonicalUrl, normalizeFrontendUrl } from "@rin/config";
 import { getApp } from "./app-instance";
 
 const ROOT_FEED_PATTERN = /^\/(rss\.xml|atom\.xml|rss\.json|feed\.json|feed\.xml)$/;
@@ -46,6 +47,35 @@ async function tryServeAsset(request: Request, env: Env) {
   return null;
 }
 
+function escapeAttribute(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+async function withCanonicalLink(response: Response, requestUrl: URL, frontendUrl: string) {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (response.status !== 200 || !contentType.includes("text/html")) {
+    return response;
+  }
+  if (!normalizeFrontendUrl(frontendUrl)) {
+    return response;
+  }
+
+  const html = await response.text();
+  if (/rel=["']canonical["']/i.test(html) || !html.includes("</head>")) {
+    return new Response(html, response);
+  }
+
+  const canonical = buildCanonicalUrl(frontendUrl, requestUrl.pathname, requestUrl.search);
+  const tag = `<link rel="canonical" href="${escapeAttribute(canonical)}" data-react-helmet="true" />`;
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  return new Response(html.replace("</head>", `${tag}</head>`), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 async function serveSpaEntry(request: Request, env: Env) {
   if (!env.ASSETS) {
     return null;
@@ -56,7 +86,11 @@ async function serveSpaEntry(request: Request, env: Env) {
     const indexRequest = new Request(new URL("/", url.origin), request);
     const indexResponse = await env.ASSETS.fetch(indexRequest);
     if (indexResponse.status === 200 || (indexResponse.status >= 300 && indexResponse.status < 400)) {
-      return indexResponse;
+      const frontendUrl = env.FRONTEND_URL ?? "";
+      if (!normalizeFrontendUrl(frontendUrl)) {
+        return indexResponse;
+      }
+      return withCanonicalLink(indexResponse, url, frontendUrl);
     }
   } catch {}
 

@@ -128,6 +128,7 @@ describe('RSSService', () => {
         });
 
         it('should serve cached rss.xml through R2 without S3_ACCESS_HOST', async () => {
+            const cachedRss = '<rss><channel><link>https://blog.example/</link><item><link>https://blog.example/feed/1</link></item></channel></rss>';
             const cachedEnv = createMockEnv({
                 FRONTEND_URL: 'https://blog.example',
                 S3_ACCESS_HOST: '' as any,
@@ -141,9 +142,10 @@ describe('RSSService', () => {
                             return null;
                         }
 
+                        const bytes = new TextEncoder().encode(cachedRss);
                         return {
                             key,
-                            size: 18,
+                            size: bytes.byteLength,
                             etag: 'etag',
                             httpEtag: 'etag',
                             uploaded: new Date('2025-01-01T00:00:00Z'),
@@ -153,13 +155,13 @@ describe('RSSService', () => {
                             writeHttpMetadata(headers: Headers) {
                                 headers.set('Content-Type', 'application/rss+xml; charset=UTF-8');
                             },
-                            body: new Blob(['<rss>cached</rss>']).stream(),
+                            body: new Blob([bytes]).stream(),
                             bodyUsed: false,
-                            arrayBuffer: async () => new TextEncoder().encode('<rss>cached</rss>').buffer,
-                            text: async () => '<rss>cached</rss>',
+                            arrayBuffer: async () => bytes.buffer,
+                            text: async () => cachedRss,
                             json: async () => ({ value: 'cached' }),
-                            blob: async () => new Blob(['<rss>cached</rss>']),
-                            bytes: async () => new Uint8Array(new TextEncoder().encode('<rss>cached</rss>')),
+                            blob: async () => new Blob([bytes]),
+                            bytes: async () => bytes,
                         } as unknown as R2ObjectBody;
                     },
                     head: async () => null,
@@ -170,7 +172,60 @@ describe('RSSService', () => {
             const res = await ctx.app.request('/rss.xml', { method: 'GET' }, cachedEnv);
 
             expect(res.status).toBe(200);
-            expect(await res.text()).toBe('<rss>cached</rss>');
+            expect(await res.text()).toBe(cachedRss);
+
+            cleanupTestDB(ctx.sqlite);
+        });
+
+        it('replaces a cached feed whose links use another origin', async () => {
+            const stored = new Map<string, string>([
+                ['cache/rss.xml', '<rss><channel><link>https://old.example/</link><item><link>https://old.example/feed/1</link></item></channel></rss>'],
+            ]);
+            const canonicalEnv = createMockEnv({
+                FRONTEND_URL: 'https://canonical.example',
+                R2_BUCKET: {
+                    get: async (key: string) => {
+                        const text = stored.get(key);
+                        if (!text) return null;
+                        const bytes = new TextEncoder().encode(text);
+                        return {
+                            key,
+                            size: bytes.byteLength,
+                            etag: 'etag',
+                            httpEtag: 'etag',
+                            uploaded: new Date('2025-01-01T00:00:00Z'),
+                            storageClass: 'Standard',
+                            checksums: {} as R2Checksums,
+                            httpMetadata: { contentType: 'application/rss+xml' },
+                            writeHttpMetadata(headers: Headers) {
+                                headers.set('Content-Type', 'application/rss+xml');
+                            },
+                            body: new Blob([bytes]).stream(),
+                            bodyUsed: false,
+                            arrayBuffer: async () => bytes.buffer,
+                            text: async () => text,
+                            json: async () => ({}),
+                            blob: async () => new Blob([bytes]),
+                            bytes: async () => bytes,
+                        } as unknown as R2ObjectBody;
+                    },
+                    head: async () => null,
+                    put: async (key: string, value: string) => {
+                        stored.set(key, value);
+                    },
+                } as unknown as R2Bucket,
+            });
+            const ctx = await setupTestApp(RSSService, canonicalEnv);
+            ctx.sqlite.exec(`INSERT INTO users (id, username, openid) VALUES (1, 'testuser', 'gh_test')`);
+            ctx.sqlite.exec(`INSERT INTO feeds (id, title, content, uid, draft, listed) VALUES (1, 'Feed', 'Content', 1, 0, 1)`);
+
+            const res = await ctx.app.request('https://origin.example/rss.xml', { method: 'GET' }, canonicalEnv);
+            const text = await res.text();
+
+            expect(res.status).toBe(200);
+            expect(text).toContain('https://canonical.example/feed/1');
+            expect(text).not.toContain('https://old.example');
+            expect(stored.get('cache/rss.xml')).toContain('https://canonical.example/feed/1');
 
             cleanupTestDB(ctx.sqlite);
         });

@@ -11,8 +11,8 @@ import { client } from "../app/runtime";
 import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
 
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl";
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants";
 
 
 type FriendItem = {
@@ -49,6 +49,7 @@ async function publish({ name, avatar, desc, url, showAlert }: { name: string, a
 export function FriendsPage() {
     const { t } = useTranslation()
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     const config = useContext(ClientConfigContext)
     let [apply] = useState<FriendItem>()
     const [name, setName] = useState("")
@@ -87,11 +88,12 @@ export function FriendsPage() {
     return (<>
         <Helmet>
             <title>{`${t('friends.title')} - ${siteConfig.name}`}</title>
-            <meta property="og:site_name" content={siteName} />
+            <link rel="canonical" href={canonicalUrl} />
+            <meta property="og:site_name" content={siteConfig.name} />
             <meta property="og:title" content={t('friends.title')} />
             <meta property="og:image" content={siteConfig.avatar} />
             <meta property="og:type" content="article" />
-            <meta property="og:url" content={document.URL} />
+            <meta property="og:url" content={canonicalUrl} />
         </Helmet>
         <Waiting for={friendsAvailable.length !== 0 || friendsUnavailable.length !== 0 || status === "idle"}>
             <main className="w-full flex flex-col justify-center items-center mb-8 t-primary ani-show">

@@ -3,8 +3,8 @@ import {Helmet} from 'react-helmet'
 import {Link} from "wouter"
 import {Waiting} from "../components/loading"
 import { client } from "../app/runtime"
+import {useCanonicalUrl} from "../hooks/useCanonicalUrl";
 import {useSiteConfig} from "../hooks/useSiteConfig";
-import {siteName} from "../utils/constants"
 import {useTranslation} from "react-i18next";
 
 interface FeedItem {
@@ -19,6 +19,7 @@ export function TimelinePage() {
     const ref = useRef(false)
     const { t } = useTranslation()
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     function fetchFeeds() {
         client.feed.timeline()
         .then(({ data }) => {
@@ -52,11 +53,12 @@ export function TimelinePage() {
         <>
             <Helmet>
                 <title>{`${t('timeline')} - ${siteConfig.name}`}</title>
-                <meta property="og:site_name" content={siteName} />
+                <link rel="canonical" href={canonicalUrl} />
+                <meta property="og:site_name" content={siteConfig.name} />
                 <meta property="og:title" content={t('timeline')} />
                 <meta property="og:image" content={siteConfig.avatar} />
                 <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
+                <meta property="og:url" content={canonicalUrl} />
             </Helmet>
             <Waiting for={feeds}>
                 <main className="w-full flex flex-col justify-center items-center mb-8 ani-show">

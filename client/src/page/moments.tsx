@@ -3,8 +3,8 @@ import { useContext, useEffect, useRef, useState } from "react"
 import { Helmet } from 'react-helmet'
 import { client } from "../app/runtime"
 
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl"
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants"
 import { useTranslation } from "react-i18next"
 import { ProfileContext } from "../state/profile"
 import { tryInt } from "../utils/int"
@@ -37,6 +37,7 @@ export function MomentsPage() {
     const ref = useRef("")
     const { t } = useTranslation()
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     const profile = useContext(ProfileContext);
     const { showAlert, AlertUI } = useAlert()
     const { showConfirm, ConfirmUI } = useConfirm()
@@ -166,11 +167,12 @@ export function MomentsPage() {
         <>
             <Helmet>
                 <title>{`${t('moments.title')} - ${siteConfig.name}`}</title>
-                <meta property="og:site_name" content={siteName} />
+                <link rel="canonical" href={canonicalUrl} />
+                <meta property="og:site_name" content={siteConfig.name} />
                 <meta property="og:title" content={t('moments.title')} />
                 <meta property="og:image" content={siteConfig.avatar} />
                 <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
+                <meta property="og:url" content={canonicalUrl} />
             </Helmet>
             <Waiting for={!loading}>
                 <main className="w-full flex flex-col justify-center items-center mb-8 ani-show">

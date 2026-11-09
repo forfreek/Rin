@@ -5,8 +5,8 @@ import { Link } from "wouter";
 import { HashTag } from "../components/hashtag";
 import { Waiting } from "../components/loading";
 import { client } from "../app/runtime";
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl";
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants";
 
 type Hashtag = {
     id: number;
@@ -19,6 +19,7 @@ type Hashtag = {
 export function HashtagsPage() {
     const { t } = useTranslation();
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     const [hashtags, setHashtags] = useState<Hashtag[]>();
     const [sortBy, setSortBy] = useState<'latest' | 'popular'>('latest');
     const ref = useRef(false);
@@ -50,11 +51,12 @@ export function HashtagsPage() {
         <>
             <Helmet>
                 <title>{`${t('hashtags')} - ${siteConfig.name}`}</title>
-                <meta property="og:site_name" content={siteName} />
+                <link rel="canonical" href={canonicalUrl} />
+                <meta property="og:site_name" content={siteConfig.name} />
                 <meta property="og:title" content={t('hashtags')} />
                 <meta property="og:image" content={siteConfig.avatar} />
                 <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
+                <meta property="og:url" content={canonicalUrl} />
             </Helmet>
             <Waiting for={hashtags}>
                 <main className="w-full flex flex-col justify-center items-center mb-8 ani-show">

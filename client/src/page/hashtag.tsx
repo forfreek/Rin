@@ -5,8 +5,8 @@ import { FeedCard } from "../components/feed_card"
 import { Waiting } from "../components/loading"
 import { client } from "../app/runtime"
 
+import { useCanonicalUrl } from "../hooks/useCanonicalUrl"
 import { useSiteConfig } from "../hooks/useSiteConfig";
-import { siteName } from "../utils/constants"
 
 
 type FeedsData = {
@@ -36,6 +36,7 @@ type FeedsData = {
 export function HashtagPage({ name }: { name: string }) {
     const { t } = useTranslation()
     const siteConfig = useSiteConfig();
+    const canonicalUrl = useCanonicalUrl();
     const [status, setStatus] = useState<'loading' | 'idle'>('idle')
     const [hashtag, setHashtag] = useState<FeedsData>()
     const feedListClass = siteConfig.feedLayout === "masonry" ? "wauto columns-1 gap-5 md:columns-2" : "wauto flex flex-col";
@@ -60,11 +61,12 @@ export function HashtagPage({ name }: { name: string }) {
         <>
             <Helmet>
                 <title>{`${hashtag?.name} - ${siteConfig.name}`}</title>
-                <meta property="og:site_name" content={siteName} />
+                <link rel="canonical" href={canonicalUrl} />
+                <meta property="og:site_name" content={siteConfig.name} />
                 <meta property="og:title" content={hashtag?.name} />
                 <meta property="og:image" content={siteConfig.avatar} />
                 <meta property="og:type" content="article" />
-                <meta property="og:url" content={document.URL} />
+                <meta property="og:url" content={canonicalUrl} />
             </Helmet>
             <Waiting for={hashtag || status === 'idle'}>
                 <main className="w-full flex flex-col justify-center items-center mb-8">
