@@ -1,4 +1,5 @@
 import type { AdjacentFeed, AdjacentFeedResponse } from "@rin/api";
+import { publicFeedPath } from "@rin/config";
 import {useEffect, useState} from "react";
 import { client } from "../app/runtime";
 import {timeago} from "../utils/timeago.ts";
@@ -42,7 +43,7 @@ export function AdjacentCard({data, type}: { data: AdjacentFeed | null | undefin
         </div>);
     }
     return (
-        <Link href={`/feed/${data.id}`} target="_blank"
+        <Link href={publicFeedPath(data.id, data.alias)} target="_blank"
               className={`w-full p-6 duration-300 bg-button ${radius}`}>
             <p className={`t-secondary w-full ${direction}`}>
                 {type === "previous" ? "Previous" : "Next"}

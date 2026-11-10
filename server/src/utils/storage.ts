@@ -173,6 +173,23 @@ export async function putStorageObject(
   return putStorageObjectAtKey(env, storageKey, body, contentType, baseUrl);
 }
 
+export async function deleteStorageObjectAtKey(env: Env, storageKey: string) {
+  if (env.R2_BUCKET) {
+    await env.R2_BUCKET.delete(storageKey);
+    return;
+  }
+
+  if (!env.S3_ENDPOINT || !env.S3_BUCKET || !env.S3_ACCESS_KEY_ID || !env.S3_SECRET_ACCESS_KEY) {
+    return;
+  }
+
+  const client = createS3Client(env);
+  const response = await client.fetch(buildS3ObjectUrl(env, storageKey), { method: "DELETE" });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Failed to delete storage object: ${response.status} ${response.statusText}`);
+  }
+}
+
 export async function putStorageObjectAtKey(
   env: Env,
   storageKey: string,

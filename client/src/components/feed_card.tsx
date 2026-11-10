@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { drawBlurhashToCanvas } from "../utils/blurhash";
 import { parseImageUrlMetadata } from "../utils/image-upload";
 import { useImageLoadState } from "../utils/use-image-load-state";
+import { publicFeedPath } from "@rin/config";
 import { type FeedCardVariant, normalizeFeedCardVariant } from "./feed-card-options";
 import { useSiteConfig } from "../hooks/useSiteConfig";
 
@@ -94,6 +95,7 @@ export type FeedCardProps = {
     draft?: number;
     listed?: number;
     top?: number;
+    alias?: string | null;
     title: string;
     summary: string;
     hashtags?: { id: number, name: string }[];
@@ -103,7 +105,7 @@ export type FeedCardProps = {
     variant?: FeedCardVariant;
 };
 
-export function FeedCard({ id, title, avatar, draft, listed, top, summary, hashtags, createdAt, updatedAt, preview = false, variant }: FeedCardProps) {
+export function FeedCard({ id, alias, title, avatar, draft, listed, top, summary, hashtags, createdAt, updatedAt, preview = false, variant }: FeedCardProps) {
     const { t } = useTranslation();
     const siteConfig = useSiteConfig();
     const safeHashtags = Array.isArray(hashtags) ? hashtags : [];
@@ -145,5 +147,5 @@ export function FeedCard({ id, title, avatar, draft, listed, top, summary, hasht
         </div>
     );
 
-    return preview ? body : <Link href={`/feed/${id}`} target="_blank" rel="noopener noreferrer" className="block min-w-0 w-full">{body}</Link>;
+    return preview ? body : <Link href={publicFeedPath(id, alias)} target="_blank" rel="noopener noreferrer" className="block min-w-0 w-full">{body}</Link>;
 }

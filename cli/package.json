@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.930.0",
+    "@rin/config": "workspace:*",
     "puppeteer": "^24.7.1",
     "strip-indent": "^4.0.0"
   },

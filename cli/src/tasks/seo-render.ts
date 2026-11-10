@@ -1,5 +1,5 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import path from "node:path";
+import { prerenderObjectKey } from "@rin/config";
 import puppeteer from "puppeteer";
 
 export async function runSeoRender() {
@@ -28,9 +28,8 @@ export async function runSeoRender() {
 
   async function saveFile(filename: string, data: string) {
     const url = new URL(filename);
-    let fileName = path.join(folder, url.pathname + url.search.replace("?", "&"));
-    if (fileName.endsWith("/")) fileName += "index.html";
-    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: fileName, Body: data, ContentType: "text/html" }));
+    const fileName = prerenderObjectKey(folder, url.pathname, url.search);
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: fileName, Body: data, ContentType: "text/html; charset=utf-8" }));
     console.info(`Saved ${accessHost}/${fileName}.`);
   }
 

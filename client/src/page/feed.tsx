@@ -171,6 +171,20 @@ export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Elemen
             content={hashtags.map(({ name }) => name).join(", ")}
           />
           <meta name="description" content={description} />
+          <script type="application/ld+json">{JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            headline: feed.title ?? "",
+            description,
+            datePublished: feed.createdAt,
+            dateModified: feed.updatedAt,
+            author: {
+              "@type": "Person",
+              name: feed.user.username,
+            },
+            mainEntityOfPage: canonicalUrl,
+            image: headImage ?? siteConfig.avatar,
+          })}</script>
         </Helmet>
       )}
       <div className="w-full flex flex-row justify-center ani-show">

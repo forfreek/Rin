@@ -1,3 +1,4 @@
+import { publicFeedPath } from "@rin/config";
 import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { AppContext } from "../core/hono-types";
@@ -266,7 +267,7 @@ async function generateFeed(env: Env, db: DB, frontendUrl: string, c?: AppContex
         feed.addItem({
             title: other.title || "No title",
             id: other.id?.toString() || "0",
-            link: `${frontendUrl}/feed/${other.id}`,
+            link: `${frontendUrl}${publicFeedPath(other.id, other.alias)}`,
             date: other.createdAt,
             description: summary.length > 0
                 ? summary
