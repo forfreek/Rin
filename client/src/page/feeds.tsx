@@ -71,22 +71,36 @@ export function FeedsPage() {
     return (
         <>
             <Helmet>
-                <title>{siteConfig.name}</title>
+                <title>{listState === "normal" ? siteConfig.name : `${listState === "draft" ? t("draft_bin") : t("unlisted")} - ${siteConfig.name}`}</title>
                 <meta name="description" content={siteConfig.description} />
                 <link rel="canonical" href={canonicalUrl} />
                 <meta property="og:site_name" content={siteConfig.name} />
                 <meta property="og:title" content={siteConfig.name} />
                 <meta property="og:description" content={siteConfig.description} />
                 <meta property="og:image" content={siteConfig.avatar} />
-                <meta property="og:type" content="article" />
+                <meta property="og:type" content="website" />
                 <meta property="og:url" content={canonicalUrl} />
+                {listState === "normal" && (
+                    <script type="application/ld+json">{JSON.stringify({
+                        "@context": "https://schema.org",
+                        "@type": "WebSite",
+                        name: siteConfig.name,
+                        description: siteConfig.description,
+                        url: canonicalUrl,
+                    })}</script>
+                )}
             </Helmet>
             <Waiting for={feeds.draft.size + feeds.normal.size + feeds.unlisted.size > 0 || status === 'idle'}>
                 <main className="w-full flex flex-col justify-center items-center mb-8">
                     <div className="wauto text-start text-black dark:text-white py-4 text-4xl font-bold">
-                        <p>
-                            {listState === 'draft' ? t('draft_bin') : listState === 'normal' ? t('article.title') : t('unlisted')}
-                        </p>
+                        <h1>
+                            {listState === 'draft' ? t('draft_bin') : listState === 'normal' ? siteConfig.name : t('unlisted')}
+                        </h1>
+                        {listState === "normal" && siteConfig.description && (
+                            <p className="mt-3 max-w-3xl text-base font-normal leading-7 text-neutral-600 dark:text-neutral-300">
+                                {siteConfig.description}
+                            </p>
+                        )}
                         <div className="flex flex-row justify-between">
                             <p className="text-sm mt-4 text-neutral-500 font-normal">
                                 {t('article.total$count', { count: currentFeeds.size })}

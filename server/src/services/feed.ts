@@ -24,6 +24,7 @@ import { stripMarkdown } from "../utils/markdown";
 import { syncFeedAISummaryQueueState } from "./feed-ai-summary";
 import { bindTagToPost } from "./tag";
 import { clearFeedCache, clearFeedCollectionCaches } from "./clear-feed-cache";
+import { refreshPublicSeo } from "./seo-cache";
 export { clearFeedCache } from "./clear-feed-cache";
 
 // Lazy-loaded modules for WordPress import
@@ -154,7 +155,7 @@ export function FeedService(): Hono<{
 
         return c.json(await profileAsync(c, 'feed_timeline_db', () => db.query.feeds.findMany({
             where: where,
-            columns: { id: true, title: true, createdAt: true },
+            columns: { id: true, alias: true, title: true, createdAt: true },
             orderBy: [desc(feeds.createdAt), desc(feeds.updatedAt)],
         })));
     });
@@ -206,6 +207,7 @@ export function FeedService(): Hono<{
             resetSummary: true,
         }));
         await profileAsync(c, 'feed_create_cache_invalidate', () => clearFeedCollectionCaches(cache));
+        await profileAsync(c, 'feed_create_seo_invalidate', () => refreshPublicSeo(env, [{ id: result.insertedId, alias }]));
 
         return c.json(result);
     }, {
@@ -341,6 +343,7 @@ export function FeedService(): Hono<{
                 const cacheKey = `${feed.id}_${feedDirection}_${id_num}`;
                 const cacheData = {
                     id: feed.id,
+                    alias: feed.alias,
                     title: feed.title,
                     summary: summary,
                     hashtags: hashtags_flatten,
@@ -455,6 +458,10 @@ export function FeedService(): Hono<{
         }
 
         await profileAsync(c, 'feed_update_cache_invalidate', () => clearFeedCache(cache, id_num, feed.alias, alias || null));
+        await profileAsync(c, 'feed_update_seo_invalidate', () => refreshPublicSeo(env, [
+            { id: id_num, alias: feed.alias },
+            { id: id_num, alias },
+        ]));
         return c.text('Updated');
     }), { message: 'Permission denied', status: 403 }));
 
@@ -483,6 +490,7 @@ export function FeedService(): Hono<{
 
         await profileAsync(c, 'feed_top_db', () => updateFeedById(db, feed.id, { top }));
         await profileAsync(c, 'feed_top_cache_invalidate', () => clearFeedCache(cache, feed.id, feed.alias, feed.alias));
+        await profileAsync(c, 'feed_top_seo_invalidate', () => refreshPublicSeo(c.get('env'), [{ id: feed.id, alias: feed.alias }]));
         return c.text('Updated');
     }), { message: 'Permission denied', status: 403 }));
 
@@ -509,6 +517,7 @@ export function FeedService(): Hono<{
 
         await profileAsync(c, 'feed_delete_db', () => deleteFeedById(db, id_num));
         await profileAsync(c, 'feed_delete_cache_invalidate', () => clearFeedCache(cache, id_num, feed.alias, null));
+        await profileAsync(c, 'feed_delete_seo_invalidate', () => refreshPublicSeo(c.get('env'), [{ id: id_num, alias: feed.alias }]));
         return c.text('Deleted');
     }, { message: 'Permission denied', status: 403 }));
     return app;
@@ -662,6 +671,7 @@ export function WordPressService(): Hono<{
         }
 
         await profileAsync(c, 'wp_import_cache_invalidate', () => clearFeedCollectionCaches(cache));
+        await profileAsync(c, 'wp_import_seo_invalidate', () => refreshPublicSeo(c.get('env')));
         return c.json({ success, skipped, skippedList });
     }, { message: 'Permission denied', status: 403 }));
     return app;

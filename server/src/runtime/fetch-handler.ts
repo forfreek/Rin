@@ -1,5 +1,6 @@
 import { buildCanonicalUrl, normalizeFrontendUrl } from "@rin/config";
 import { getApp } from "./app-instance";
+import { readPrerenderedHtml, redirectPreservingTarget, resolvePublicDocument } from "./public-document";
 
 const ROOT_FEED_PATTERN = /^\/(rss\.xml|atom\.xml|rss\.json|feed\.json|feed\.xml)$/;
 const APP_PUBLIC_ROUTE_PATTERN = /^\/(favicon|favicon\.ico)(?:\/|$)/;
@@ -104,28 +105,43 @@ export async function handleFetch(
 ): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname;
+  const preservedHostRedirect = redirectPreservingTarget(request, env.FRONTEND_URL ?? "");
 
   if (isRootFeedRequest(pathname)) {
-    return getApp().fetch(request, env, executionContext);
+    return preservedHostRedirect ?? getApp().fetch(request, env, executionContext);
   }
 
   if (isApiRequest(pathname)) {
-    return getApp().fetch(rewriteApiRequest(request), env, executionContext);
+    return preservedHostRedirect ?? getApp().fetch(rewriteApiRequest(request), env, executionContext);
   }
 
   if (isAppPublicRoute(pathname)) {
-    return getApp().fetch(request, env, executionContext);
+    return preservedHostRedirect ?? getApp().fetch(request, env, executionContext);
   }
 
   if (isMetaRoute(pathname)) {
-    return getApp().fetch(request, env);
+    return preservedHostRedirect ?? getApp().fetch(request, env);
   }
 
   if (isStaticAssetRequest(pathname)) {
+    if (preservedHostRedirect) return preservedHostRedirect;
     const asset = await tryServeAsset(request, env);
     if (asset) {
       return asset;
     }
+  }
+
+  if (request.method === "GET" || request.method === "HEAD") {
+    const decision = await resolvePublicDocument(request, env);
+    if (decision.action === "redirect") return Response.redirect(decision.location, 301);
+    if (decision.action === "missing") {
+      return new Response("Not found", {
+        status: 404,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    }
+    const prerendered = await readPrerenderedHtml(request, env);
+    if (prerendered) return prerendered;
   }
 
   const indexResponse = await serveSpaEntry(request, env);

@@ -16,6 +16,34 @@ export function normalizeFrontendUrl(frontendUrl: string) {
   return frontendUrl.trim().replace(/\/+$/, "");
 }
 
+export function publicFeedPath(id: number | string, alias?: string | null) {
+  const trimmed = alias?.trim();
+  if (!trimmed) {
+    return `/feed/${id}`;
+  }
+  return `/${encodeURIComponent(trimmed)}`;
+}
+
+export function prerenderObjectKey(cacheFolder: string, pathname: string, search = "") {
+  const folder = cacheFolder.trim().replace(/^\/+|\/+$/g, "");
+  const canonical = new URL(buildCanonicalUrl("https://canonical.invalid", pathname, search));
+  let name = canonical.pathname === "/" ? "index" : decodePath(canonical.pathname).replace(/^\/+/, "");
+  const page = canonical.searchParams.get("page");
+  if (page) {
+    name += `.page-${page}`;
+  }
+  name += ".html";
+  return folder ? `${folder}/${name}` : name;
+}
+
+function decodePath(pathname: string) {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
+  }
+}
+
 /**
  * Build the public canonical URL for a page.
  * Homepage keeps a trailing slash. List pages keep `page` when it selects

@@ -78,9 +78,13 @@ describe("handleFetch", () => {
       env,
     );
     const canonical = '<link rel="canonical" href="https://xnotpro.site/" data-react-helmet="true" />';
+    const direct = await handleFetch(new Request("https://xnotpro.site/"), env);
 
-    expect(await browser.text()).toContain(canonical);
-    expect(await bot.text()).toContain(canonical);
+    expect(browser.status).toBe(301);
+    expect(browser.headers.get("location")).toBe("https://xnotpro.site/");
+    expect(bot.status).toBe(301);
+    expect(bot.headers.get("location")).toBe("https://xnotpro.site/");
+    expect(await direct.text()).toContain(canonical);
   });
 
   it("injects article and paginated canonical URLs from FRONTEND_URL", async () => {
@@ -98,13 +102,60 @@ describe("handleFetch", () => {
 
     const article = await handleFetch(new Request("https://www.xnotpro.site/feed/12?fbclid=1"), env);
     const page = await handleFetch(new Request("https://xnotpro.site/?page=2&limit=10&type=draft"), env);
-    const articleHtml = await article.text();
+    const trackedDrafts = await handleFetch(new Request("https://www.xnotpro.site/?type=draft&utm_source=ads"), env);
+    const articlePage = await handleFetch(new Request("https://xnotpro.site/feed/12"), env);
     const pageHtml = await page.text();
 
-    expect(articleHtml).toContain("https://xnotpro.site/feed/12");
-    expect(articleHtml).not.toContain("fbclid");
+    expect(article.status).toBe(301);
+    expect(article.headers.get("location")).toBe("https://xnotpro.site/feed/12");
+    expect(page.status).toBe(200);
     expect(pageHtml).toContain("https://xnotpro.site/?page=2");
-    expect(pageHtml).not.toContain("limit=10");
     expect(pageHtml).not.toContain("type=draft");
+    expect(trackedDrafts.status).toBe(301);
+    expect(trackedDrafts.headers.get("location")).toBe("https://xnotpro.site/?type=draft");
+    expect(await articlePage.text()).toContain("https://xnotpro.site/feed/12");
+  });
+
+  it("redirects a numbered article URL to its alias and rejects unknown paths", async () => {
+    const { handleFetch } = await import("../fetch-handler");
+    const html = "<!DOCTYPE html><html><head></head><body>rendered</body></html>";
+    const env = {
+      FRONTEND_URL: "https://xnotpro.site",
+      S3_CACHE_FOLDER: "cache/",
+      DB: {
+        prepare: (sql: string) => ({
+          bind: (...args: unknown[]) => ({
+            first: async () => {
+              if (sql.includes("alias = ?") && args[0] === "hello") return { id: 12, alias: "hello" };
+              if (sql.includes("id = ?") && args[0] === 12) return { id: 12, alias: "hello" };
+              return null;
+            },
+          }),
+        }),
+      },
+      R2_BUCKET: {
+        get: async (key: string) => {
+          if (key !== "cache/hello.html") return null;
+          return {
+            body: html,
+            size: html.length,
+            uploaded: new Date(),
+            httpEtag: "etag",
+            writeHttpMetadata(headers: Headers) {
+              headers.set("content-type", "text/html; charset=utf-8");
+            },
+          };
+        },
+      },
+    } as unknown as Env;
+
+    const numbered = await handleFetch(new Request("https://xnotpro.site/feed/12"), env);
+    const alias = await handleFetch(new Request("https://xnotpro.site/hello"), env);
+    const missing = await handleFetch(new Request("https://xnotpro.site/missing-page"), env);
+
+    expect(numbered.status).toBe(301);
+    expect(numbered.headers.get("location")).toBe("https://xnotpro.site/hello");
+    expect(await alias.text()).toBe(html);
+    expect(missing.status).toBe(404);
   });
 });
